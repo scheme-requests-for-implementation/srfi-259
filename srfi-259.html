@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<!-- saved from url=(0034)https://dpk.land/tmp/srfi-259.html -->
+<html lang="en"><!--
+SPDX-FileCopyrightText: 2025 Daphne Preston-Kendal
+SPDX-License-Identifier: MIT
+--><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <title>SRFI 259: Tagged procedures with type safety</title>
+    <link href="https://dpk.land/favicon.png" rel="icon" sizes="192x192" type="image/png">
+    <link rel="stylesheet" href="./259.html_files/srfi.css" type="text/css">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><style>
+var {
+    font-family: serif;
+    white-space: nowrap;
+}
+var.stx {
+    font-style: normal;
+    font-family: serif;
+
+    &::before { content: '⟨'; }
+    &::after { content: '⟩'; }
+}
+</style></head>
+
+  <body>
+    <h1><a href="https://srfi.schemers.org/"><img class="srfi-logo" src="./259.html_files/srfi-logo.svg" alt="SRFI surfboard logo"></a> 259: Tagged procedures with type safety</h1>
+
+<p>by Daphne Preston-Kendal</p>
+
+<h2 id="status">Status</h2>
+
+<p style="color: red;">For editor's use only.  Please do not edit this section.</p>
+
+<p>??? the draft/final/withdrawn status of the SRFI, information on how
+to subscribe to its mailing list, and important dates in its history.
+The editor will add this section.</p>
+
+<h2 id="abstract">Abstract</h2>
+
+<p>Tagged procedures are procedures with boxes attached, which can be used to create applicable records and other abstractions. This SRFI proposes a variant with the notion of a tagging protocol, analogous to a record type definition, for ensuring encapsulation and security for tagged procedures.</p>
+
+<h2 id="issues">Issues</h2>
+
+<p>None known.
+
+</p><h2 id="rationale">Rationale</h2>
+<p>The rationale of tagged procedures is well explained by the original <a href="https://srfi.schemers.org/srfi-229/srfi-229.html">SRFI&nbsp;229</a>. That SRFI has a flaw, though, hiding in plain sight within this sentence in its rationale:</p>
+<blockquote>
+<p>In fact, in the context of SRFI 229, one shouldn’t think of procedures falling in just two classes, untagged and tagged ones (note that all procedures may be implementable as tagged ones), but falling into infinitely many classes, one for each type of its tag.</p>
+</blockquote>
+<p>Since there are infinitely many types of tagged procedures, tagged procedures should themselves be typed. A system of tagged procedures without this feature is somewhat like a system of records built on Scheme vectors and pairs rather than true record types.</p>
+<p>Specifically, the value in the tag box of a tagged procedure may be intended, by the usual consumers of the tagged procedure, to imply something about the behaviour of the procedure. But this contract can be broken by mischievous code which takes the tag value from one procedure and attaches it to another procedure which doesn’t have the expected behaviour. In a context where procedure tags might be used for security purposes, that procedure might in fact have some very unwanted nefarious behaviour.</p>
+<p>Creating a system of typed tagged procedures, where only the holder of the correct accessor and constructor procedures can directly create tagged procedures of a certain type, makes tagged procedures type safe and suitable for use in security-oriented protocols.</p>
+<h2 id="specification">Specification</h2>
+<h3 id="entry:define-procedure-tag"><code>(define-procedure-tag <var class="stx">constructor name</var> <var class="stx">predicate name</var> <var class="stx">accessor name</var>)</code>&nbsp;— syntax</h3>
+<p><em>Syntax:</em> The subforms are all identifiers. <code>Define-procedure-tag</code> is a definition form.</p>
+<p><em>Semantics:</em> <code>Define-procedure-tag</code> binds the identifiers <code><var class="stx">constructor name</var></code>, <code><var class="stx">predicate name</var></code>, and <code><var class="stx">accessor name</var></code> to three procedures for a newly-created tagging protocol.</p>
+<ul>
+<li><p>The <code><var class="stx">constructor name</var></code> is bound to a constructor procedure of two arguments, <var>tag</var> and <var>proc</var>. <var>Proc</var> must be a procedure, referred to as the underlying procedure. When invoked, the constructor procedure returns a new procedure object which has identical arity and behaviour as the underlying procedure, but is tagged in the new tagging protocol with the object <code>TAG</code>. If the underlying procedure is already a tagged procedure in some protocol or protocols, the new tag is added in the newly-returned procedure to the existing ones, with the given <var>tag</var>; if one of those protocols is the created tagging protocol, the tag value for this protocol is effectively replaced with the new <var>tag</var> value.</p>
+<p>The procedure object returned from the constructor procedure has a fresh location tag and is distinct from all existing procedures in the sense of the <code>eqv?</code>, <code>eq?</code>, and <code>equal?</code> procedures.</p></li>
+<li><p>The <code><var class="stx">predicate name</var></code> is bound to a predicate procedure of one argument. When this procedure is invoked, it returns <code>#t</code> if its argument is a procedure object that was created by a call to the constructor procedure, or <code>#f</code> otherwise.</p></li>
+<li><p>The <code><var class="stx">accessor name</var></code> is bound to an accessor procedure of one argument. Its argument is a procedure object created by a call to the constructor procedure, otherwise an assertion violation is signalled. The accessor procedure returns the value of the <var>tag</var> which was provided when the constructor procedure was called.</p></li>
+</ul>
+<p><code>Define-procedure-tag</code> is generative: every evaluation causes the creation of a new procedure tagging protocol, and the constructor, predicate, and accessor procedures created do not operate on tagged procedures with the protocol from previous or future evaluations of the same <code>define-procedure-tag</code> form.</p>
+<p>Procedure tagging protocols do not create a disjoint type: the <code>procedure?</code> predicate answers <code>#t</code> on tagged procedures.</p>
+<h2 id="implementation">Implementation</h2>
+<p>The following implementation is in terms of SRFI&nbsp;229. Of course, if user programs are given direct access to SRFI&nbsp;229, the type safety can be broken.</p>
+<pre class="scheme"><code>(define-library (srfi 259)
+  (export define-procedure-tag)
+  (import (scheme base)
+          (srfi 229))
+  (begin
+    (define-record-type Tag
+      (make-tag vals)
+      tag?
+      (vals tag-vals))
+    (define-syntax define-procedure-tag
+      (syntax-rules ()
+        ((_ constructor predicate accessor)
+         (begin
+           (define key (cons 'constructor '()))
+           (define (constructor tag underlying-proc)
+             (if (and (procedure/tag? underlying-proc)
+                      (tag? (procedure-tag underlying-proc)))
+                 (lambda/tag (make-tag
+                              (cons (cons key tag)
+                                    (tag-vals
+                                     (procedure-tag underlying-proc))))
+                             args
+                             (apply underlying-proc args))
+                 (lambda/tag (make-tag (cons (cons key tag) '()))
+                             args
+                             (apply underlying-proc args))))
+           (define (predicate obj)
+             (and (procedure/tag? obj)
+                  (tag? (procedure-tag obj))
+                  (not (not (assq key (tag-vals (procedure-tag obj)))))))
+           (define (accessor proc)
+             (cond ((assq key (tag-vals (procedure-tag proc)))
+                    =&gt; cdr)
+                   (else (error "not tagged in this protocol" proc))))))))))</code></pre>
+<h2 id="example">Example</h2>
+<p>The following code implements the core of the T object system (also known as the ‘operations’, ‘YASOS’, or ‘Scheming with Objects’ system). The exports are <code>object</code>, <code>object?</code>, <code>operation</code>, <code>operation?</code></p>
+<pre class="scheme"><code>(define-procedure-tag make-object object? object-vtable)
+
+(define-syntax object
+  (syntax-rules ()
+    ((_ proc-expr ((operation . formals) body_0 body_1 ...) ...)
+     (letrec*
+         ((proc (cond (proc-expr)
+                      (else (lambda ignored
+                              (assertion-violation #f
+                                                   "object not callable")))))
+          (obj
+           (make-object
+            (list
+             (cons operation
+                   (lambda formals body_0 body_1 ...)) ...)
+            proc)))
+       obj))))
+
+(define (find-method obj op)
+  (cond ((assv op (object-vtable obj)) =&gt; cdr)
+        (else #f)))
+
+(define operation?
+  (object (lambda (x) #f)
+    ((operation? self) #t)))
+
+(define-syntax operation
+  (syntax-rules ()
+    ((_ default-expr  ...)
+     (letrec*
+         ((default default-expr)
+          (op
+           (object (lambda (obj . args)
+                     (cond ((and (object? obj)
+                                 (find-method obj op))
+                            =&gt; (lambda (method)
+                                 (apply method obj args)))
+                           (else (apply default obj args))))
+                   ((operation . formals) body_0 body_1 ...) ...)))
+       op))))</code></pre>
+<h2 id="acknowledgements">Acknowledgements</h2>
+<p>Thanks to Marc Nieper-Wißkirchen for the original SRFI&nbsp;229 and for identifying the flaw in it to me.</p>
+
+<h2 id="copyright">Copyright</h2>
+<p>© 2025 Daphne Preston-Kendal.</p>
+
+<p>
+  Permission is hereby granted, free of charge, to any person
+  obtaining a copy of this software and associated documentation files
+  (the "Software"), to deal in the Software without restriction,
+  including without limitation the rights to use, copy, modify, merge,
+  publish, distribute, sublicense, and/or sell copies of the Software,
+  and to permit persons to whom the Software is furnished to do so,
+  subject to the following conditions:</p>
+
+<p>
+  The above copyright notice and this permission notice (including the
+  next paragraph) shall be included in all copies or substantial
+  portions of the Software.</p>
+<p>
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+  BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.</p>
+
+  <hr>
+  <address>Editor: <a href="mailto:srfi-editors+at+srfi+dot+schemers+dot+org">Arthur A. Gleckler</a></address></body></html>
