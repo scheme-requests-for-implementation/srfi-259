@@ -9,6 +9,8 @@
 
 keywords: [[https://srfi.schemers.org/?keywords=data-structure][Data Structure]]
 
+library-name: tagged-procedures
+
 This repository hosts [[https://srfi.schemers.org/srfi-259/][SRFI 259]]: Tagged procedures with type safety, a [[https://srfi.schemers.org/][Scheme Request for Implementation]].
 
 This SRFI is in /draft/ status.
