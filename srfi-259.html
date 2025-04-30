@@ -68,10 +68,10 @@ var.stx {
 <p><em>Semantics:</em> <code>Define-procedure-tag</code> binds the identifiers <code><var class="stx">constructor name</var></code>, <code><var class="stx">predicate name</var></code>, and <code><var class="stx">accessor name</var></code> to three procedures for a newly-created tagging protocol.</p>
 
 <ul>
-<li><p>The <code><var class="stx">constructor name</var></code> is bound to a constructor procedure of two arguments, <var>tag</var> and <var>proc</var>. <var>Proc</var> must be a procedure, referred to as the underlying procedure. When invoked, the constructor procedure returns a new procedure object which has identical arity and behaviour as the underlying procedure, but is tagged in the new tagging protocol with the object <code>TAG</code>. If the underlying procedure is already a tagged procedure in some protocol or protocols, the new tag is added in the newly-returned procedure to the existing ones, with the given <var>tag</var>; if one of those protocols is the created tagging protocol, the tag value for this protocol is effectively replaced with the new <var>tag</var> value.</p>
+<li><p>The <code><var class="stx">constructor name</var></code> is bound to a constructor procedure of two arguments, <var>tag</var> and <var>proc</var>. <var>Proc</var> must be a procedure, referred to as the underlying procedure. When invoked, the constructor procedure returns a new procedure object which has identical arity and behaviour as the underlying procedure, but is tagged in the new tagging protocol with the object <code><var>tag</var></code>. If the underlying procedure is already a tagged procedure in some protocol or protocols, the new tag is added in the newly-returned procedure to the existing ones, with the given <var>tag</var>; if one of those protocols is the created tagging protocol, the tag value for this protocol is effectively replaced with the new <var>tag</var> value.</p>
 <p>The procedure object returned from the constructor procedure has a fresh location tag and is distinct from all existing procedures in the sense of the <code>eqv?</code>, <code>eq?</code>, and <code>equal?</code> procedures.</p></li>
-<li><p>The <code><var class="stx">predicate name</var></code> is bound to a predicate procedure of one argument. When this procedure is invoked, it returns <code>#t</code> if its argument is a procedure object that was created by a call to the constructor procedure, or <code>#f</code> otherwise.</p></li>
-<li><p>The <code><var class="stx">accessor name</var></code> is bound to an accessor procedure of one argument. Its argument is a procedure object created by a call to the constructor procedure, otherwise an assertion violation is signalled. The accessor procedure returns the value of the <var>tag</var> which was provided when the constructor procedure was called.</p></li>
+<li><p>The <code><var class="stx">predicate name</var></code> is bound to a predicate procedure of one argument. When this procedure is invoked, it returns <code>#t</code> if its argument is a tagged procedure in the created tagging protocol, or <code>#f</code> if it is any other object.</p></li>
+<li><p>The <code><var class="stx">accessor name</var></code> is bound to an accessor procedure of one argument. Its argument is a tagged procedure in the created tagging protocol, otherwise an assertion violation is signalled. The accessor procedure returns the value of the <var>tag</var> which was provided when the constructor procedure was called.</p></li>
 </ul>
 
 <p><code>Define-procedure-tag</code> is generative: every evaluation causes the creation of a new procedure tagging protocol, and the constructor, predicate, and accessor procedures created do not operate on tagged procedures with the protocol from previous or future evaluations of the same <code>define-procedure-tag</code> form.</p>
@@ -116,53 +116,153 @@ var.stx {
                     =&gt; cdr)
                    (else (error "not tagged in this protocol" proc))))))))))</code></pre>
 
+<p>An additional sample implementation for Chez Scheme is included in the repository of this SRFI.
+
 <h2 id="example">Example</h2>
 
-<p>The following code implements the core of the T object system (also known as the ‘operations’, ‘YASOS’, or ‘Scheming with Objects’ system). The exports are <code>object</code>, <code>object?</code>, <code>operation</code>, <code>operation?</code></p>
+<h3 id="example:trivial">Trivial use</h3>
+
+<p>The following REPL transcript shows the expected behaviours as specified by this SRFI. It is suitable for use as a test suite.
+
+<pre class=scheme><code>;; A single procedure tag
+
+(define-procedure-tag make-a-tagged a-tagged? a-tag)
+
+(define (greet whom) (list 'hello whom))
+
+(define greet-a (make-a-tagged 12 greet))
+
+(a-tagged? greet-a) ;=> #t
+(a-tagged? greet)   ;=> #f
+(a-tagged? 'a)      ;=> #f
+
+(a-tag greet-a) ;=> 12
+(a-tag greet)   ; (assertion violation)
+(a-tag 'a)      ; (assertion violation)
+
+(greet 'world)   ;=> (hello world)
+(greet-a 'world) ;=> (hello world)
+
+(define greet-a* (make-a-tagged 12 greet))
+(eqv? greet-a greet-a*) ;=> #f
+(eq? greet-a greet-a*)  ;=> #f
+
+(greet-a* 'world) ;=> (hello world)
+
+
+;; A second procedure tag
+
+(define-procedure-tag make-b-tagged b-tagged? b-tag)
+
+(define greet-b (make-b-tagged 34 greet))
+
+(a-tagged? greet-b) ;=> #f
+(b-tagged? greet-b) ;=> #t
+
+(b-tag greet-b) ;=> 34
+
+
+;; Two tags on a single procedure
+
+(define greet-ab (make-b-tagged 56 greet-a))
+
+(a-tagged? greet-ab) ;=> #t
+(b-tagged? greet-ab) ;=> #t
+
+(a-tag greet-ab) ;=> 12
+(b-tag greet-ab) ;=> 56
+
+
+;; Replacing an existing tag
+
+(define greet-ab* (make-a-tagged 1234 greet-ab))
+
+(a-tagged? greet-ab*) ;=> #t
+(b-tagged? greet-ab*) ;=> #t
+
+(a-tag greet-ab*) ;=> 1234
+(b-tag greet-ab*) ;=> 56
+
+(a-tag greet-ab) ;=> 12
+
+
+;; Define-procedure-tag is generative
+
+(define (make-procedure-tag)
+  (define-procedure-tag make is-a? ref)
+  (values make is-a? ref))
+
+(define-values (make-c-tagged c-tagged? c-tag) (make-procedure-tag))
+(define-values (make-d-tagged d-tagged? d-tag) (make-procedure-tag))
+
+(define greet-c (make-c-tagged 'alpha greet))
+(define greet-d (make-d-tagged 'beta greet))
+
+(c-tagged? greet-c) ;=> #t
+(d-tagged? greet-c) ;=> #f
+(c-tagged? greet-d) ;=> #f
+(d-tagged? greet-d) ;=> #t
+
+(c-tag greet-c) ;=> alpha
+(d-tag greet-d) ;=> beta</code></pre>
+
+<h3 id="example:object-system">Object system</h3>
+
+<p>The following code implements the core of the T object system (also known as the ‘operations’, ‘YASOS’, or ‘Scheming with Objects’ system). The exports are <code>object</code>, <code>object?</code>, <code>operation</code>, and <code>operation?</code></p>
+
 <pre class="scheme"><code>(define-procedure-tag make-object object? object-vtable)
 
 (define-syntax object
   (syntax-rules ()
     ((_ proc-expr ((operation . formals) body_0 body_1 ...) ...)
      (letrec*
-         ((proc (cond (proc-expr)
-                      (else (lambda ignored
-                              (assertion-violation #f
-                                                   "object not callable")))))
+         ((proc
+           (cond (proc-expr)
+                 (else (lambda ignored
+                         (assertion-violation #f
+                                              "object not callable"
+                                              proc)))))
           (obj
            (make-object
-            (list
-             (cons operation
-                   (lambda formals body_0 body_1 ...)) ...)
+            (lambda (op)
+              (cond ((eqv? op operation)
+                     (lambda formals body_0 body_1 ...)) ...
+                    (else #f)))
             proc)))
        obj))))
 
-(define (find-method obj op)
-  (cond ((assv op (object-vtable obj)) =&gt; cdr)
-        (else #f)))
-
-(define operation?
-  (object (lambda (x) #f)
-    ((operation? self) #t)))
-
 (define-syntax operation
   (syntax-rules ()
-    ((_ default-expr  ...)
-     (letrec*
+    ((_ default-expr ((operation . formals) body_0 body_1 ...) ...)
+     (letrec
          ((default default-expr)
           (op
-           (object (lambda (obj . args)
-                     (cond ((and (object? obj)
-                                 (find-method obj op))
-                            =&gt; (lambda (method)
-                                 (apply method obj args)))
-                           (else (apply default obj args))))
-                   ((operation . formals) body_0 body_1 ...) ...)))
-       op))))</code></pre>
+           (object
+               (case-lambda
+                 (()
+                  (if default
+                      (default)
+                      (assertion-violation #f
+                                           "operation not defined")))
+                 ((obj . args)
+                  (cond ((and (object? obj)
+                              ((object-vtable obj) op))
+                         => (lambda (method)
+                              (apply method obj args)))
+                        (default (apply default obj args))
+                        (else (assertion-violation #f
+                                                   "operation not defined")))))
+             ((operation? self) #t)
+             ((operation . formals) body_0 body_1 ...) ...)))
+       op))))
+
+(define operation? (operation (lambda (obj) #f)))</code></pre>
 
 <h2 id="acknowledgements">Acknowledgements</h2>
 
 <p>Thanks to Marc Nieper-Wißkirchen for the original SRFI&nbsp;229 and for identifying the flaw in it to me.</p>
+
+<p>Thanks to Peter McGoron for suggesting improvements to the specification text.
 
 <h2 id="copyright">Copyright</h2>
 
