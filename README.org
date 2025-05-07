@@ -13,7 +13,7 @@ library-name: tagged-procedures
 
 This repository hosts [[https://srfi.schemers.org/srfi-259/][SRFI 259]]: Tagged procedures with type safety, a [[https://srfi.schemers.org/][Scheme Request for Implementation]].
 
-This SRFI is in /draft/ status.
+This SRFI is in /final/ status.
 See also [[/srfi-229/][SRFI 229: Tagged Procedures]].
 The full documentation for this SRFI can be found in the [[https://srfi.schemers.org/srfi-259/srfi-259.html][SRFI Document]].
 
