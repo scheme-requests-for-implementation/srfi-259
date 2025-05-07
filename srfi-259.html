@@ -66,13 +66,13 @@ var.stx {
 
 <p><em>Syntax:</em> The subforms are all identifiers. <code>Define-procedure-tag</code> is a definition form.</p>
 
-<p><em>Semantics:</em> <code>Define-procedure-tag</code> binds the identifiers <code><var class="stx">constructor name</var></code>, <code><var class="stx">predicate name</var></code>, and <code><var class="stx">accessor name</var></code> to three procedures for a newly-created tagging protocol.</p>
+<p><em>Semantics:</em> <code>Define-procedure-tag</code> binds the identifiers <code><var class="stx">constructor name</var></code>, <code><var class="stx">predicate name</var></code>, and <code><var class="stx">accessor name</var></code> to three procedures for a newly created tagging protocol.</p>
 
 <ul>
-<li><p>The <code><var class="stx">constructor name</var></code> is bound to a constructor procedure of two arguments, <var>tag</var> and <var>proc</var>. <var>Proc</var> must be a procedure, referred to as the underlying procedure. When invoked, the constructor procedure returns a new procedure object which has identical arity and behaviour as the underlying procedure, but is tagged in the new tagging protocol with the object <code><var>tag</var></code>. If the underlying procedure is already a tagged procedure in some protocol or protocols, the new tag is added in the newly-returned procedure to the existing ones, with the given <var>tag</var>; if one of those protocols is the created tagging protocol, the tag value for this protocol is effectively replaced with the new <var>tag</var> value.</p>
+<li><p>The <code><var class="stx">constructor name</var></code> is bound to a constructor procedure of two arguments, <var>tag</var> and <var>proc</var>. <var>Proc</var> must be a procedure, referred to as the underlying procedure. When invoked, the constructor procedure returns a new procedure object which has identical arity and behaviour as the underlying procedure, but is tagged in the new tagging protocol with the object <code><var>tag</var></code>. If the underlying procedure is already a tagged procedure in some protocol or protocols, the new tag is added in the newly returned procedure to the existing ones, with the given <var>tag</var>; if one of those protocols is the created tagging protocol, the tag value for this protocol is effectively replaced with the new <var>tag</var> value.</p>
 <p>The procedure object returned from the constructor procedure has a fresh location tag and is distinct from all existing procedures in the sense of the <code>eqv?</code>, <code>eq?</code>, and <code>equal?</code> procedures.</p></li>
 <li><p>The <code><var class="stx">predicate name</var></code> is bound to a predicate procedure of one argument. When this procedure is invoked, it returns <code>#t</code> if its argument is a tagged procedure in the created tagging protocol, or <code>#f</code> if it is any other object.</p></li>
-<li><p>The <code><var class="stx">accessor name</var></code> is bound to an accessor procedure of one argument. Its argument is a tagged procedure in the created tagging protocol, otherwise an assertion violation is signalled. The accessor procedure returns the value of the <var>tag</var> which was provided when the constructor procedure was called.</p></li>
+<li><p>The <code><var class="stx">accessor name</var></code> is bound to an accessor procedure of one argument. Its argument is a tagged procedure in the created tagging protocol.  If it is not, an assertion violation is signalled. The accessor procedure returns the value of the <var>tag</var> which was provided when the constructor procedure was called.</p></li>
 </ul>
 
 <p><code>Define-procedure-tag</code> is generative: every evaluation causes the creation of a new procedure tagging protocol, and the constructor, predicate, and accessor procedures created do not operate on tagged procedures with the protocol from previous or future evaluations of the same <code>define-procedure-tag</code> form.</p>
@@ -117,7 +117,7 @@ var.stx {
                     =&gt; cdr)
                    (else (error "not tagged in this protocol" proc))))))))))</code></pre>
 
-<p>An additional sample implementation for Chez Scheme is included in the repository of this SRFI.
+<p>An additional sample implementation for Chez Scheme is included <a href="https://github.com/scheme-requests-for-implementation/srfi-259">in the repository</a> of this SRFI.
 
 <h2 id="example">Example</h2>
 
