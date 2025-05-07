@@ -1,3 +1,6 @@
+;;; SPDX-FileCopyrightText: 2025 Daphne Preston-Kendal
+;;; SPDX-License-Identifier: MIT
+
 (library (srfi :259 tagged-procedures)
   (export define-procedure-tag)
   (import (chezscheme))
